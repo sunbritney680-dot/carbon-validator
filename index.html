@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>碳值校验工具 | Carbon Validator</title>
+<!-- SheetJS for Excel reading -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<!-- xlsx-js-style for colored Excel export -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #1558b0;
+    --bg: #f0f2f5;
+    --card-bg: #ffffff;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --border: #dadce0;
+    --success: #34a853;
+    --warning: #ea8600;
+    --danger: #ea4335;
+    --info: #4285f4;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+    color: white;
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .header-icon { font-size: 32px; }
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header p { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+
+  /* Container */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* Cards */
+  .card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .icon { font-size: 20px; }
+
+  /* Upload Area */
+  .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 768px) { .upload-grid { grid-template-columns: 1fr; } }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+    background: #fafbfc;
+  }
+  .upload-zone:hover { border-color: var(--primary); background: #f0f6ff; }
+  .upload-zone.dragover { border-color: var(--primary); background: #e8f0fe; }
+  .upload-zone.has-file { border-color: var(--success); background: #f0fff4; }
+  .upload-zone input[type="file"] { display: none; }
+
+  .upload-icon { font-size: 40px; margin-bottom: 8px; }
+  .upload-text { font-size: 14px; color: var(--text-secondary); }
+  .upload-text strong { color: var(--text); }
+  .file-name {
+    margin-top: 10px; font-size: 13px; color: var(--success);
+    font-weight: 500; word-break: break-all;
+  }
+
+  /* Sheet Selector */
+  .sheet-select-wrapper { margin-top: 12px; display: none; }
+  .sheet-select-wrapper.visible { display: block; }
+  .sheet-select-wrapper label { font-size: 13px; color: var(--text-secondary); }
+  .sheet-select-wrapper select {
+    width: 100%; padding: 8px 12px; margin-top: 4px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; background: white;
+  }
+
+  /* Button */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 28px; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    transition: all 0.2s ease; text-decoration: none;
+  }
+  .btn-primary {
+    background: var(--primary); color: white;
+  }
+  .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { opacity: 0.9; }
+  .btn-outline {
+    background: transparent; color: var(--primary);
+    border: 1.5px solid var(--primary);
+  }
+  .btn-outline:hover { background: #f0f6ff; }
+
+  .action-bar {
+    display: flex; justify-content: center; gap: 16px; margin: 24px 0;
+  }
+
+  /* Stats Grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .stat-card {
+    background: var(--card-bg); border-radius: 10px; padding: 18px 16px;
+    text-align: center; box-shadow: var(--shadow); border-left: 4px solid #ccc;
+    transition: transform 0.2s ease;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card .number { font-size: 28px; font-weight: 700; line-height: 1.2; }
+  .stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .stat-card .desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; opacity: 0.7; }
+
+  /* Stat colors */
+  .stat-ignore { border-color: #9aa0a6; }
+  .stat-ignore .number { color: #5f6368; }
+  .stat-normal { border-color: var(--success); }
+  .stat-normal .number { color: var(--success); }
+  .stat-low { border-color: var(--info); }
+  .stat-low .number { color: var(--info); }
+  .stat-over { border-color: var(--warning); }
+  .stat-over .number { color: var(--warning); }
+  .stat-review { border-color: var(--danger); }
+  .stat-review .number { color: var(--danger); }
+  .stat-high { border-color: #d93025; background: #fce8e6; }
+  .stat-high .number { color: #d93025; }
+  .stat-nomatch { border-color: #9aa0a6; }
+  .stat-nomatch .number { color: #9aa0a6; }
+
+  /* Table */
+  .table-wrapper {
+    overflow-x: auto; border-radius: var(--radius);
+    border: 1px solid var(--border); margin-top: 16px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { background: #2f5496; color: white; }
+  th { padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  tr:hover td { background: #f8f9fa; }
+
+  /* Tag badges */
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
+  .badge-ignore { background: #f2f2f2; color: #5f6368; }
+  .badge-normal { background: #e2efda; color: #375623; }
+  .badge-low { background: #ddebf7; color: #1f497d; font-weight: 600; }
+  .badge-over { background: #fce4d6; color: #c55a11; font-weight: 600; }
+  .badge-review { background: #ffd7d7; color: #c00000; font-weight: 600; }
+  .badge-high { background: #ff0000; color: #ffffff; font-weight: 700; }
+  .badge-nomatch { background: #f2f2f2; color: #9aa0a6; }
+
+  /* Rules Reference - compact inline style */
+  .rules-card { background: #f0f6ff; border: 1px solid #c2dbff; border-radius: var(--radius); padding: 16px 20px; margin-top: 20px; }
+  .rules-card .card-title { margin-bottom: 10px; }
+  .rules-list-compact { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .rules-list-compact li { font-size: 12px; display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+  .rules-list-compact .rule-num { min-width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  @media (max-width: 768px) { .rules-list-compact { grid-template-columns: 1fr; } }
+
+  /* Loading */
+  .loading-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(255,255,255,0.92); z-index: 999;
+    align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 44px; height: 44px; border: 4px solid #e0e0e0;
+    border-top-color: var(--primary); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 15px; color: var(--text-secondary); }
+
+  /* Progress info */
+  .progress-info { text-align: center; margin: 16px 0; display: none; }
+  .progress-info.show { display: block; }
+  .progress-info .hint { font-size: 13px; color: var(--text-secondary); }
+
+  /* Error toast */
+  .toast {
+    position: fixed; top: 20px; right: 20px; z-index: 1000;
+    padding: 14px 20px; border-radius: 10px; font-size: 14px;
+    background: #fee; color: #c00; box-shadow: var(--shadow-lg);
+    display: none; align-items: center; gap: 8px; max-width: 420px;
+  }
+  .toast.show { display: flex; animation: slideIn 0.3s ease; }
+  .toast.success { background: #e8f5e9; color: #2e7d32; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } }
+
+  /* Footer */
+  .footer { text-align: center; padding: 24px; color: var(--text-secondary); font-size: 12px; }
+
+  /* Result section hidden by default */
+  #result-section { display: none; }
+  #result-section.show { display: block; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Top Action Bar */
+  .top-action-bar {
+    display: flex; justify-content: center; gap: 16px; margin-bottom: 20px;
+    padding: 16px; background: var(--card-bg); border-radius: var(--radius);
+    box-shadow: var(--shadow); align-items: center; flex-wrap: wrap;
+  }
+  .top-action-bar .btn { font-size: 14px; padding: 10px 24px; }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+  .filter-btn {
+    padding: 5px 14px; border: 1px solid var(--border); border-radius: 16px;
+    background: white; font-size: 12px; cursor: pointer; transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+  .table-info { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-icon">&#x1F33F;</div>
+  <div>
+    <h1>碳值校验工具</h1>
+    <p>Carbon Footprint Validation Tool &#2014; 产品碳值自动校验与报告生成</p>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Upload Card -->
+  <div class="card" id="uploadCard">
+    <div class="card-title"><span class="icon">&#x1F4C1;</span> 上传文件</div>
+    <div class="upload-grid">
+      <div>
+        <div class="upload-zone" id="dataZone" onclick="document.getElementById('dataInput').click()">
+          <input type="file" id="dataInput" accept=".xlsx,.xls,.csv" onchange="handleFileSelect(this, 'data')">
+          <div class="upload-icon">&#x1F4CA;</div>
+          <div class="upload-text"><strong>产品数据表</strong><br>包含产品名称、总碳值、电能损耗等</div>
+          <div class="file-name" id="dataFileName"></div>
+        </div>
+      </div>
+      <div>
+        <div class="upload-zone" id="refZone" onclick="document.getElementById('refInput').click()">
+          <input type="file" id="refInput" accept=".xlsx,.xls" onchange="handleFileSelect(this, 'ref')">
+          <div class="upload-icon">&#x1F4CB;</div>
+          <div class="upload-text"><strong>基准范围参考表</strong><br>包含品类、子类型、碳足迹范围</div>
+          <div class="file-name" id="refFileName"></div>
+        </div>
+        <div class="sheet-select-wrapper" id="sheetWrapper">
+          <label>选择基准表 Sheet：</label>
+          <select id="sheetSelect"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-primary" id="runBtn" onclick="runValidation()" disabled>
+        &#x26A1; 开始校验
+      </button>
+    </div>
+  </div>
+
+  <!-- Rules Reference -->
+  <div class="rules-card" id="rulesCardInline">
+    <div class="card-title"><span class="icon">&#x1F4D6;</span> 校验规则说明</div>
+    <ul class="rules-list-compact">
+      <li><span class="rule-num">1</span><div><strong>&lt;1：</strong>有基准且 &lt;下限&#xD7;90%&#x2192;<b style="color:#1f497d">偏低</b>；否则&#x2192;忽略</div></li>
+      <li><span class="rule-num">2</span><div><strong>1~100：</strong>匹配失败&#x2192;无法匹配 | &lt;下限90%&#x2192;<b style="color:#1f497d">偏低</b> | 范围内&#x2192;<b style="color:#375623">正常</b> | &gt;上限 电能&#x2264;1&#x2192;<b style="color:#c55a11">超基准</b> | &gt;上限 电能&gt;1&#x2192;<b style="color:#c00000">需复核</b></div></li>
+      <li><span class="rule-num">3</span><div><strong>&gt;100：</strong>一律标记为 <b style="color:#d93025">高值</b>（纯红）</div></li>
+      <li><span class="rule-num">4</span><div><strong>品类匹配：</strong>B列=基准表品类，C列=产品子类；无法匹配填 <code>-</code></div></li>
+    </ul>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">正在执行碳值校验，请稍候...</div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Results -->
+  <div id="result-section">
+
+    <!-- Top Action Bar -->
+    <div class="top-action-bar">
+      <div style="font-size:14px;color:var(--text-secondary)">
+        &#x2705; 校验完成 — 共 <strong id="totalCountTop" style="color:var(--primary)">0</strong> 条数据
+      </div>
+      <button class="btn btn-success" onclick="downloadReport()">&#x1F4E5; 下载完整Excel报告</button>
+      <button class="btn btn-outline" onclick="resetAll()">&#x1F504; 重新开始</button>
+    </div>
+
+    <!-- Statistics -->
+    <div class="card">
+      <div class="card-title"><span class="icon">&#x1F4C8;</span> 校验统计</div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+      <div class="card-title"><span class="icon">&#x1F4CB;</span> 数据明细
+        <span style="margin-left:auto;font-size:13px;font-weight:normal;color:var(--text-secondary)" id="tableInfo"></span>
+      </div>
+      <div class="filter-bar" id="filterBar"></div>
+      <div class="table-wrapper">
+        <table id="resultTable">
+          <thead><tr></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="footer">Carbon Validator v2.0 (Pure Frontend) &#xB7; 基于 v12b 规则引擎</div>
+
+<script>
+// ============================================================
+// 关键词品类到基准表品类映射
+// ============================================================
+const KEYWORD_TO_REF_CATEGORY = {
+    'Bags':               'Bag',
+    'Apparel':            'Clothing',
+    'Drinkware':          'Drinkware',
+    'Exhibition & Events':'Exhibition & Events',
+    'Fun & Games':        'Fun & Games',
+    'Headwear':           'Headwear',
+    'Health & Personal':  'Health & Personal',
+    'Home & Living':      'Home & Living',
+    'Keyrings & Tools':   'Keyrings & Tools',
+    'Office Stationery':  'Office Stationery',
+    'Pens & Pencils':     'Pens & Pencils',
+    'Print':              'Print',
+    'Tech':               'USB & Tech',
+    'Leisure & Outdoors': 'Leisure & Outdoors',
+    'Pet toy':            'Pet Toy',
+};
+
+const CATEGORY_KEYWORDS = {
+    'Bags': ['bag', 'backpack', 'tote', 'pouch', 'purse', 'handbag', 'clutch', 'wallet',
+        'case', 'sleeve', 'cooler', 'cooler bag', 'luggage', 'duffle', 'duffel', 'messenger',
+        'crossbody', 'drawstring', 'lunch bag', 'cosmetic', 'toiletry', 'waist pack',
+        'briefcase', 'satchel', 'portfolio', 'shopper', 'storage bag', 'wine carrier',
+        'travel bag', 'sports bag', 'laptop bag', 'cosmetic bag', 'toiletry bag',
+        'canvas tool belt', 'bag clip', 'shopping bag', 'slingpack', 'backsack', 'fanny pack',
+        'backpac', 'folio', 'accessory pack', 'pack', 'brief', 'boomerang',
+        'sling', 'carrier'],
+    'Apparel': ['tshirt', 't-shirt', 'shirt', 'hoodie', 'jacket', 'vest', 'polo',
+        'sweater', 'sweatshirt', 'pant', 'shorts', 'apron', 'uniform', 'glove', 'scarf',
+        'mask', 'bib', 'jumpsuit', 'romper', 'clothing', 'bandana', 'tie', 'belt',
+        'costume', 'dress', 'footwear', 'overall', 'roughall', 'skirt', 'sock', 'pullover',
+        'hi-vis vest', 'high vis', 'women', 'men', 'children', 'kids', 'youth',
+        'tee', 'singlet', 'poncho', 'rashie', 'swimsuit', 'tutu', 'scrunchie',
+        'econo', 'royal', 'burgundy', 'navy', 'black', 'white', 'yellow',
+        'bandanna', 'rope toggle', 'rope', 'toggle', 'teddy bear',
+        'robe', 'bathrobe', 'cloak', 'jersey', 'tracksuit', 'sandal', 'sandals',
+        'legging', 'hoodie robe', 'flannel', 'pinafore', 'coverall',
+        'raincoat', 'rain coat', 'rain jacket', 'waterproof jacket', 'windbreaker',
+        'hoody', 'gaiter', 'swag', 'coat', 'anorak', 'parka', 'fleece'],
+    'Drinkware': ['bottle', 'cup', 'mug', 'tumbler', 'flask', 'can', 'glass', 'straw',
+        'coaster', 'drinkware', 'water bottle', 'sports bottle', 'coffee mug', 'travel mug',
+        'insulated', 'ceramic mug', 'aluminum bottle', 'borosilicate', 'collapsible bottle',
+        'freezer cup', 'glass bottle', 'glass mug', 'wine glass', 'plastic cup', 'shaker',
+        'specialty cup', 'steel bottle', 'stubby holder', 'thermo bottle', 'pail', 'bucket',
+        'retro', 'essentials', 'viewstrip', 'dumbbell fliptop',
+        'beer holder', 'can cooler', 'stubby cooler', 'neoprene holder'],
+    'Exhibition & Events': ['banner', 'flag', 'pop up', 'backdrop', 'booth', 'exhibition',
+        'display', 'stand', 'roll up', 'x-banner', 'l-banner', 'sign', 'feather flag',
+        'tent', 'marquee', 'popup', 'camping tent', 'show table', 'scroll banner', 'patch',
+        'license plate frame', 'badge holder', 'badge', 'lanyard', 'wrist band', 'wristband',
+        'medal', 'award', 'fridge magnet', 'bunting', 'gift', 'wine cover', 'check presenter'],
+    'Fun & Games': ['ball', 'game', 'puzzle', 'toy', 'dice', 'card game', 'chess', 'checkers',
+        'frisbee', 'kite', 'yo-yo', 'rubik', 'magic', 'playing card', 'card deck', 'poker',
+        'uno', 'football', 'soccer', 'basketball', 'volleyball', 'baseball', 'golf ball',
+        'novelty', 'stress', 'soft toy', 'electronic toy', 'party supply', 'block',
+        'building block', 'decoration', 'deluxe game', 'mini electronic', 'plastic silicone',
+        'sports toy', 'pickleball', 'flying disc', 'fidget', 'fidget spinner', 'hand spinner',
+        'float', 'flamingo float', 'chips float', 'slipper float', 'cheering stick', 'confetti',
+        'streamer', 'wand', 'nutcracker', 'cowbell', 'bell', 'bobblehead', 'plush egg',
+        'wigs', 'christmas stocking', 'chicken', 'beef steak', 'cake shovel', 'silicone ring',
+        'flipper zero', 'skipping rope', 'barbell collar', 'jigger', 'slicer', 'peeler',
+        'cocktail strainer', 'herb grinder', 'tobacco grinder', 'push pop', 'cube', 'cricket set',
+        'tea tin', 'loose-leaf tea',
+        'pinata', 'pinata', 'toilet golf', 'drone', 'painting kit', 'oil painting',
+        'christmas tree', 'cheer stick', 'led foam', 'foam stick', 'plush', 'stuffed',
+        'rattle', 'squeezy', 'bouncy', 'blow up', 'inflatable',
+        'maraca', 'led maraca', 'musical toy', 'electric jump fish', 'jump fish',
+        'bar runner', 'mini bar runner'],
+    'Headwear': ['cap', 'hat', 'beanie', 'visor', 'headband', 'headwear', 'head band',
+        'snapback', 'trucker hat', 'fedor', 'bucket hat', 'sun hat', 'baseball cap',
+        'golf cap', 'knit beanie', 'fleece beanie', 'peak', 'crown', 'flat peak',
+        'sports cap', 'kids cap', 'kid cap', 'children cap', 'high-end cap', 'straw hat',
+        'sunhat', 'bandana', 'headwrap', 'head scarf', 'balaclava', 'neck gaiter'],
+    'Health & Personal': ['humidifier', 'massager', 'thermometer', 'blood pressure', 'scale',
+        'pill box', 'first aid', 'sanitizer', 'hand sanitizer', 'lotion', 'sunscreen',
+        'lip balm', 'mint', 'candy', 'mints', 'wellness', 'health', 'personal care',
+        'skincare', 'spa', 'face mask', 'hand wash', 'wet wipe', 'tissue', 'cotton bud',
+        'eye mask', 'hand fan', 'neck fan', 'head massager', 'manicure set', 'pill case',
+        'pillow', 'towel', 'bath lily', 'bath ball', 'brush', 'comb', 'nail brush',
+        'toothpaste squeezer', 'floss pick', 'electric massage', 'slipper', 'toes splitting',
+        'splitting slipper', 'back scratcher', 'shoe horn', 'earmuffs', 'hearing protection',
+        'ear muff', 'blender', 'electric blender', 'portable blender', 'egg beater', 'electric beater'],
+    'Home & Living': ['pillow', 'cushion', 'blanket', 'apron', 'oven mitt',
+        'pot holder', 'placemat', 'napkin', 'tablecloth', 'curtain', 'rug', 'mat',
+        'home decor', 'home living', 'storage', 'organizer', 'lamp', 'light', 'clock',
+        'photo frame', 'picture frame', 'frame', 'candle', 'aroma', 'plant pot', 'hanger', 'hook', 'hook rack',
+        'key holder', 'tray', 'box', 'container', 'jar', 'fan', 'kitchen',
+        'bathroom', 'bedroom', 'outdoor', 'garden', 'picnic', 'cutting board', 'board',
+        'grill pan', 'scoop', 'colander', 'sieve', 'keeper', 'salt pepper', 'mill',
+        'bamboo', 'steel', 'cutlery', 'knife', 'fork', 'spoon', 'cheese board',
+        'corkscrew', 'wine accessory', 'coin bank', 'ceramic', 'glassware',
+        'lunch box', 'pet bowl', 'pet feeder', 'pet bed',
+        'phone stand', 'mirror', 'decor', 'wall mirror', 'portable fire pit', 'bbq', 'grill', 'timer', 'watches', 'aluminum',
+        'stainless steel', 'wood', 'ceramic glassware', 'metal cookware', 'kitchen tool',
+        'gadget', 'logo mat', 'ad mat', 'smart pet', 'vacuum', 'handheld vacuum',
+        'desktop vacuum', 'steam mop', 'steam cleaner', 'diffuser', 'aroma diffuser',
+        'massage', 'neck shoulder relaxer', 'gravity', 'fly swatter', 'swatter', 'sponge',
+        'compressed sponge', 'beard balm', 'cheese please', 'wine cheese set', 'dip trip',
+        'sauce holder', '3-in-1 charger', 'charging station', 'foldable charging', 'cord winder',
+        'cable organizer', 'trolley', 'shopping basket', 'conference bag',
+        'tableware holder', 'phone finger ring', 'finger buckle', 'pu leather phone',
+        'barbecue stove', 'mini barbecue', 'popcorn maker', 'air freshener', 'car air freshener',
+        'body mist', 'facial spritz', 'bath salt', 'bath bomb', 'soap', 'body wash',
+        'condom', 'floss', 'beeswax wrap', 'guest soap', 'coffee scrub', 'body powder',
+        'fabric', 'waffle fabric', 'denim', 'wicker', 'mesh', 'ripstop', 'polynosic',
+        'water resistant', 'recycled fabric', 'screen wipe', 'wind up', 'winder',
+        'phone magnifier', 'magnifier', 'cigar cutter', 'tire gauge', 'alarm', 'driver alert',
+        'anti sleep', 'selfie stick', 'phone navigator', 'vent holder', 'bike phone mount',
+        'clothes rack', 'car clothes rack', 'packing cell', 'dumbbell', 'flip top',
+        'pizza cutter', 'pizza wheel', 'french press', 'coffee maker', 'coffee grinder',
+        'hand grinder', 'coffee press', 'snow removal', 'ice scraper', 'car heat shield',
+        'heat shield', 'tripod stand', 'retractable tripod',
+        'refrigerator', 'mini fridge', 'mini refrigerator', 'portable fridge', 'car fridge',
+        'ice stick', 'piggy bank', 'coin box', 'money box', 'dunny roll', 'toilet roll',
+        'toilet paper holder'],
+    'Keyrings & Tools': ['keychain', 'key ring', 'key fob', 'bottle opener', 'tool',
+        'multitool', 'knife', 'scissors', 'ruler', 'measuring tape', 'level', 'screwdriver',
+        'wrench', 'spanner', 'pliers', 'hammer', 'saw', 'chisel', 'flashlight', 'torch',
+        'lighter', 'compass', 'carabiner', 'clip', 'split ring', 'key tag', 'magnet',
+        'magnets', 'bottleopener', 'opener', 'accessories', 'bracelet', 'keyrings',
+        'cutting tool', 'measuring', 'multi tool', 'tool set', 'tape measure', 'auto accessory',
+        'binocular', 'telescope', 'beads bracelet', 'crystal bracelet',
+        'leather bracelet', 'silicone bracelet', 'fashion bracelet'],
+    'Office Stationery': ['notebook', 'stapler', 'paper clip', 'binder', 'folder', 'pencil case',
+        'desk organizer', 'calendar', 'planner', 'sticky note', 'memo', 'envelope', 'name card',
+        'business card', 'card holder', 'bookmark', 'eraser', 'sharpener', 'pencil',
+        'marker', 'highlighter', 'correction', 'tape', 'dispenser', 'scissors', 'cutting mat',
+        'mouse pad', 'desk pad', 'document', 'stationery', 'compendium', 'diary',
+        'notepad', 'pen holder', 'pencil sharpener', 'portfolio', 'file holder',
+        'heightening stand', 'keyboard hand rest', 'laptop stand', 'notebook cooler',
+        'screen cleaner', 'sticker', 'storage cabinet', 'table cushion', 'wireless charger',
+        'charging base', 'calendars', 'adhesive note', 'label', 'tag',
+        'calculator', 'calculators', 'punching set', 'desktop punching'],
+    'Pens & Pencils': ['pen', 'pencil', 'ballpoint', 'gel pen', 'rollerball', 'fountain',
+        'mechanical pencil', 'color pencil', 'crayon', 'marker', 'highlighter',
+        'whiteboard marker', 'chalk', 'stylus', 'touch pen', 'drawing pen', 'art pen',
+        'brush pen', 'ballpoint pen', 'plastic pen', 'metal pen', 'aluminum pen', 'brass pen',
+        'eco pen', 'novelty pen', 'multi-function pen', 'multi function pen', 'pen set',
+        'pen packaging', 'stylus pen'],
+    'Print': ['card', 'greeting card', 'postcard', 'invitation', 'certificate', 'diploma',
+        'menu', 'brochure', 'flyer', 'leaflet', 'pamphlet', 'poster', 'print', 'sticker',
+        'label', 'hang tag', 'booklet', 'catalog', 'journal', 'diary',
+        'memo pad', 'paper', 'cardboard', 'business card', 'ad label', 'ribbon',
+        'graduation', 'combo pad', 'planner pad', 'cotton', 'nylon', 'polyester', 'rpet',
+        'pla', 'biodegradable', 'video greeting card', 'racebook', 'racebook cover',
+        'check presenter', 'presenter', 'jewellery wrap', 'jewelry wrap'],
+    'Tech': ['usb', 'flash drive', 'thumb drive', 'pendrive', 'power bank', 'powerbank',
+        'charger', 'cable', 'adapter', 'hub', 'reader', 'card reader', 'speaker', 'earphone',
+        'headphone', 'earbud', 'microphone', 'webcam', 'camera', 'mouse', 'keyboard',
+        'cable organizer', 'phone stand', 'phone holder', 'grip', 'ring holder',
+        'PopSocket', 'wireless charger', 'car charger', 'travel charger', 'fast charger',
+        'LED light', 'light up', 'glowing', 'electronic', 'tech', 'digital', 'SD card',
+        'TF card', 'memory card', 'stylus pen', 'touch pen', 'pointer', 'laser pointer',
+        'music', 'audio', 'bluetooth speaker', 'airtag case', 'car phone mount',
+        'charging cable', 'string light', 'decorative lamp', 'decorative lighting',
+        'smart watch', 'watch', 'phone case', 'tablet cover', 'screen protector',
+        'tempered glass', 'mouse mat', 'tech accessory', 'travel adapter', 'pouch',
+        'key finder', 'complex electronic', 'acoustic', 'high-power', 'smart device',
+        'power bank', 'charging cable', 'phone case', 'tempered glass', 'smart tracker',
+        'bluetooth tracker', 'tracker', 'flipper zero holder', 'vent phone', 'navigator holder',
+        'phone navigator', 'light',
+        'smart band', 'fitness tracker', 'activity tracker', 'wrist tracker',
+        'drone', 'quadcopter', 'fpv', 'tripod', 'screen amplifier', 'phone amplifier',
+        'otg', 'on the go', 'flip drive', 'metal drive', 'air pump', 'electric pump',
+        'dash cam', 'dashcam', 'action cam', 'projector'],
+    'Leisure & Outdoors': ['tent', 'sleeping bag', 'mattress', 'camping', 'hiking', 'beach',
+        'outdoor', 'leisure', 'sport', 'fitness', 'gym', 'yoga', 'towel', 'chair', 'stool',
+        'cooler', 'ice box', 'umbrella', 'parasol', 'sunshade', 'canopy', 'folding', 'picnic',
+        'travel', 'adventure', 'climbing', 'fishing', 'cycling', 'running', 'swimming',
+        'water sport', 'balloon', 'hammock', 'folding chair', 'folding table', 'bbq set',
+        'ball tray', 'jump rope', 'pedometer', 'picnic rug', 'picnic set', 'sunglasses',
+        'sweat band', 'water sports', 'fitness band', 'golf accessory', 'golf glove',
+        'basketball', 'football', 'volleyball', 'tennis ball', 'soccer ball',
+        'stainless steel cutlery', 'ceramic plate', 'wicker basket', 'lantern',
+        'outdoor sleeping bag', 'camp throne',
+        'inflatable sofa', 'air sofa',
+        'wrist weight', 'ankle weight', 'weight band', 'resistance band',
+        'shoeshine', 'shoe shine', 'shoe polish', 'easter basket', 'electric fish',
+        'trekking pole', 'hiking pole', 'walking pole', 'trekking stick'],
+    'Pet toy': ['pet', 'dog', 'cat', 'pet toy', 'pet ball', 'pet bed', 'pet collar',
+        'pet leash', 'pet bowl', 'pet feeder', 'dog toy', 'cat toy', 'pet house',
+        'pet furniture', 'pet cushion', 'pet blanket', 'pet mat', 'pet towel', 'pet brush',
+        'pet comb', 'pet water bottle', 'silicone water bottle', 'chew toy', 'flying disc',
+        'plush toy', 'rubber toy', 'plastic toy', 'natural fiber toy', 'electronic pet toy',
+        'smart pet', 'pet ice cream', 'pet wheel toy', 'pet hair roller', 'teddy bear'],
+};
+
+// ============================================================
+// 核心校验逻辑（从Python翻译）
+// ============================================================
+
+/**
+ * 解析基准范围如 '0.5 - 2.3' → [0.5, 2.3]
+ */
+function parseRange(val) {
+    if (val === null || val === undefined || val === '') return [null, null];
+    val = String(val).trim();
+    if (val.indexOf('-') >= 0) {
+        const parts = val.split('-');
+        try {
+            return [parseFloat(parts[0].trim()), parseFloat(parts[1].trim())];
+        } catch(e) {
+            return [null, null];
+        }
+    }
+    return [null, null];
+}
+
+/**
+ * 从基准表构建子类型查找字典
+ * Returns: { sub_lower: [low, high, category, sub_orig] }
+ */
+function buildRefDict(refRows) {
+    const refDict = {};
+    let currentCategory = null;
+
+    for (let i = 0; i < refRows.length; i++) {
+        const row = refRows[i];
+        const mainCat = (row[0] !== undefined && row[0] !== null && row[0] !== '') ? String(row[0]).trim() : '';
+        const sub = (row[1] !== undefined && row[1] !== null && row[1] !== '') ? String(row[1]).trim() : '';
+
+        if (mainCat && !sub) {
+            currentCategory = mainCat;
+        } else if (sub) {
+            // Split by '/' for multiple subtypes
+            const subParts = sub.split('/');
+            for (let sp of subParts) {
+                sp = sp.trim();
+                if (!sp) continue;
+
+                // Try to get range from column index 4 (0-based)
+                let lowVal = null, highVal = null;
+                if (row.length >= 5 && row[4] !== undefined && row[4] !== null) {
+                    [lowVal, highVal] = parseRange(row[4]);
+                }
+
+                refDict[sp.toLowerCase()] = [lowVal, highVal, currentCategory, sp];
+            }
+        }
+    }
+
+    return refDict;
+}
+
+/**
+ * 匹配产品名称到基准表品类和子类型
+ * Returns: [keyword_cat, ref_category, sub_orig, low, high]
+ */
+function matchProduct(name, refDict) {
+    const nameLower = (name !== null && name !== undefined) ? String(name).toLowerCase() : '';
+    const nameNoSpace = nameLower.replace(/ /g, '').replace(/-/g, '');
+
+    const matchedCats = [];
+    for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+        for (const kw of keywords) {
+            const kwNs = kw.toLowerCase().replace(/ /g, '').replace(/-/g, '');
+            if (nameNoSpace.indexOf(kwNs) >= 0) {
+                matchedCats.push(cat);
+                break;
+            }
+        }
+    }
+
+    if (matchedCats.length === 0) {
+        return [null, null, null, NaN, NaN];
+    }
+
+    let bestKcat = null, bestRcat = null, bestSub = null;
+    let bestLow = NaN, bestHigh = NaN;
+
+    for (const kcat of matchedCats) {
+        const rcat = KEYWORD_TO_REF_CATEGORY[kcat] || kcat;
+
+        // Find subtypes matching this category
+        const catSubtypes = {};
+        for (const [subKey, [low, high, c, orig]] of Object.entries(refDict)) {
+            if (c === rcat) {
+                catSubtypes[subKey] = [low, high, orig];
+            }
+        }
+
+        for (const [subKey, [low, high, subOrig]] of Object.entries(catSubtypes)) {
+            const subWords = subKey.replace(/-/g, ' ').split(/\s+/);
+            let allMatch = true;
+
+            for (let word of subWords) {
+                word = word.trim();
+                if (!word) continue;
+                const wns = word.replace(/ /g, '');
+                if (nameNoSpace.indexOf(wns) >= 0) continue;
+                // Try singular form
+                if (word.endsWith('s') && word.length > 1 && nameNoSpace.indexOf(word.slice(0, -1)) >= 0) continue;
+                allMatch = false;
+                break;
+            }
+
+            if (allMatch) {
+                if (bestSub === null || subKey.length > (bestSub || '').length) {
+                    bestKcat = kcat;
+                    bestRcat = rcat;
+                    bestSub = subOrig;
+                    bestLow = low;
+                    bestHigh = high;
+                }
+            }
+        }
+
+        if (bestSub !== null) {
+            return [bestKcat, bestRcat, bestSub, bestLow, bestHigh];
+        }
+    }
+
+    const first = matchedCats[0];
+    return [first, KEYWORD_TO_REF_CATEGORY[first] || first, null, NaN, NaN];
+}
+
+/**
+ * 单行校验逻辑
+ * Returns: [tag, base_cat, base_sub, low, high, power_val]
+ */
+function validateRow(total, power, name, refDict) {
+    const [kcat, rcat, sub, low, high] = matchProduct(name, refDict);
+
+    const bCol = rcat || '-';
+    const cCol = sub || '-';
+
+    const powerVal = (power !== null && power !== undefined && !isNaN(power)) ? power : 0;
+
+    // Rule 1: < 1
+    if (total === null || total === undefined || isNaN(total) || total < 1) {
+        if (low !== null && !isNaN(low) && low > 0 && total < low * 0.9) {
+            return ['偏低', bCol, cCol, low, high, powerVal];
+        }
+        return ['忽略', bCol, cCol, low, high, powerVal];
+    }
+
+    // Rule 3: > 100
+    if (total > 100) {
+        return ['高值', bCol, cCol, low, high, powerVal];
+    }
+
+    // Range 1-100
+    if (kcat === null) {
+        return ['无法匹配', '-', '-', NaN, NaN, powerVal];
+    }
+
+    if (high !== null && !isNaN(high)) {
+        if (total > high) {
+            if (powerVal > 1) {
+                return ['需复核', bCol, cCol, low, high, powerVal];
+            } else {
+                return ['超基准', bCol, cCol, low, high, powerVal];
+            }
+        } else {
+            if (low !== null && !isNaN(low) && low > 0 && total < low * 0.9) {
+                return ['偏低', bCol, cCol, low, high, powerVal];
+            }
+            return ['正常', bCol, cCol, low, high, powerVal];
+        }
+    } else {
+        return ['正常', bCol, cCol, low, high, powerVal];
+    }
+}
+
+/**
+ * 自动检测关键列名
+ * Returns: { name, carbon, power }
+ */
+function detectColumns(columns) {
+    const colsLower = {};
+    for (const c of columns) {
+        colsLower[c.toLowerCase().trim()] = c;
+    }
+
+    // Product name column
+    const nameCandidates = Object.keys(colsLower).filter(k =>
+        k.indexOf('产品名称') >= 0 || k.indexOf('product_name') >= 0 ||
+        k.indexOf('name') >= 0 || k.indexOf('产品名') >= 0 || k.indexOf('名称') >= 0
+    );
+    if (nameCandidates.length === 0) throw new Error("未找到'产品名称/product_name/name'列");
+    const nameCol = colsLower[nameCandidates[0]];
+
+    // Carbon value column
+    const carbonCandidates = Object.keys(colsLower).filter(k =>
+        k.indexOf('总碳值') >= 0 || k.indexOf('total_carbon') >= 0 ||
+        k.indexOf('carbon') >= 0 || k.indexOf('碳排放') >= 0 || k.indexOf('kgco2') >= 0
+    );
+    if (carbonCandidates.length === 0) throw new Error("未找到'总碳值/total_carbon/carbon'列");
+    const carbonCol = colsLower[carbonCandidates[0]];
+
+    // Power consumption column
+    const powerCandidates = Object.keys(colsLower).filter(k =>
+        k.indexOf('生产制造中电力总碳值') >= 0 || k.indexOf('电力碳值') >= 0 ||
+        k.indexOf('电力损耗') >= 0 || k.indexOf('power') >= 0 || k.indexOf('电能') >= 0
+    );
+    const powerCol = powerCandidates.length > 0 ? colsLower[powerCandidates[0]] : null;
+
+    return { name: nameCol, carbon: carbonCol, power: powerCol };
+}
+
+/**
+ * 执行完整校验流程
+ * Returns: { results: [], stats: {}, columns: [] }
+ */
+function runValidationEngine(dataRows, dataCols, refRows) {
+    const refDict = buildRefDict(refRows);
+    const colMap = detectColumns(dataCols);
+
+    const results = [];
+    const nameIdx = dataCols.indexOf(colMap.name);
+    const carbonIdx = dataCols.indexOf(colMap.carbon);
+    const powerIdx = colMap.power ? dataCols.indexOf(colMap.power) : -1;
+
+    for (let idx = 0; idx < dataRows.length; idx++) {
+        const row = dataRows[idx];
+        let total = row[carbonIdx];
+        let power = powerIdx >= 0 ? row[powerIdx] : 0;
+        let name = row[nameIdx];
+
+        // Convert to numbers
+        total = parseFloat(total);
+        power = parseFloat(power);
+        if (isNaN(total)) total = null;
+        if (isNaN(power)) power = 0;
+
+        const [tag, bCat, cSub, lo, hi, pwr] = validateRow(total, power, name, refDict);
+
+        const loS = (lo !== null && !isNaN(lo)) ? String(lo) : '-';
+        const hiS = (hi !== null && !isNaN(hi)) ? String(hi) : '-';
+        const rangeStr = ((lo !== null && !isNaN(lo)) || (hi !== null && !isNaN(hi))) ? (loS + '-' + hiS) : '-';
+
+        results.push({
+            '序号': idx + 1,
+            '产品名称': name,
+            '品类(基准表)': bCat,
+            '产品子类(基准表)': cSub,
+            '总碳值(kgCO2e)': (total !== null && !isNaN(total)) ? Math.round(total * 10000) / 10000 : '',
+            '电能损耗(kgCO2e)': (pwr !== null && !isNaN(pwr)) ? Math.round(pwr * 10000) / 10000 : '',
+            '基准范围': rangeStr,
+            '标记': tag,
+        });
+    }
+
+    // Statistics
+    const counts = {};
+    for (const r of results) {
+        const t = r['标记'];
+        counts[t] = (counts[t] || 0) + 1;
+    }
+
+    const stats = {
+        '忽略': counts['忽略'] || 0,
+        '正常': counts['正常'] || 0,
+        '偏低': counts['偏低'] || 0,
+        '超基准': counts['超基准'] || 0,
+        '需复核': counts['需复核'] || 0,
+        '高值': counts['高值'] || 0,
+        '无法匹配': counts['无法匹配'] || 0,
+        '总计': results.length,
+    };
+
+    const columns = ['序号', '产品名称', '品类(基准表)', '产品子类(基准表)', '总碳值(kgCO2e)', '电能损耗(kgCO2e)', '基准范围', '标记'];
+
+    return { results, stats, columns };
+}
+
+/**
+ * 使用 xlsx-js-style 生成带颜色的Excel报告并触发下载
+ */
+function generateAndDownloadExcel(results, stats) {
+    // Create workbook with xlsx-js-style (global XLSX from CDN)
+    const wb = XLSX.utils.book_new();
+
+    // Data sheet
+    const wsData = [Object.keys(results[0])];
+    for (const r of results) {
+        wsData.push(Object.values(r));
+    }
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Define fills and fonts using xlsx-js-style API
+    const fills = {
+        '忽略': { fgColor: { rgb: 'F2F2F2' }, patternType: 'solid' },
+        '正常': { fgColor: { rgb: 'E2EFDA' }, patternType: 'solid' },
+        '偏低': { fgColor: { rgb: 'DDEBF7' }, patternType: 'solid' },
+        '超基准': { fgColor: { rgb: 'FCE4D6' }, patternType: 'solid' },
+        '需复核': { fgColor: { rgb: 'FFD7D7' }, patternType: 'solid' },
+        '高值': { fgColor: { rgb: 'FF0000' }, patternType: 'solid' },
+        '无法匹配': { fgColor: { rgb: 'F2F2F2' }, patternType: 'solid' },
+    };
+
+    const fonts = {
+        '忽略': { color: { rgb: '999999' } },
+        '正常': { color: { rgb: '375623' } },
+        '偏低': { color: { rgb: '1F497D' }, bold: true },
+        '超基准': { color: { rgb: 'C55A11' }, bold: true },
+        '需复核': { color: { rgb: 'C00000' }, bold: true },
+        '高值': { color: { rgb: 'FFFFFF' }, bold: true },
+        '无法匹配': { color: { rgb: '999999' } },
+    };
+
+    // Apply header style
+    const headerFill = { fgColor: { rgb: '2F5496' }, patternType: 'solid' };
+    const headerFont = { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 };
+    const headerAlign = { horizontal: 'center', vertical: 'center', wrapText: true };
+    const cellAlign = { vertical: 'center' };
+
+    // Set column widths
+    ws['!cols'] = [
+        { wch: 6 },   // 序号
+        { wch: 50 },  // 产品名称
+        { wch: 18 },  // 品类
+        { wch: 28 },  // 子类
+        { wch: 16 },  // 总碳值
+        { wch: 16 },  // 电能损耗
+        { wch: 14 },  // 基准范围
+        { wch: 10 },  // 标记
+    ];
+
+    // Freeze pane
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+    // Style header row
+    for (let c = 0; c < wsData[0].length; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c });
+        if (!ws[cellRef]) ws[cellRef] = { t: 's', v: wsData[0][c] };
+        ws[cellRef].s = { fill: headerFill, font: headerFont, alignment: headerAlign };
+    }
+    ws['!rowHeights'] = [{ hpt: 30 }];
+
+    // Style data rows
+    const markColIdx = wsData[0].indexOf('标记');
+    for (let r = 1; r <= results.length; r++) {
+        const status = results[r - 1]['标记'];
+        const fill = fills[status];
+        const font = fonts[status];
+
+        for (let c = 0; c < wsData[0].length; c++) {
+            const cellRef = XLSX.utils.encode_cell({ r, c });
+            if (!ws[cellRef]) continue;
+            const style = {};
+            if (fill) style.fill = fill;
+            if (c === markColIdx && font) style.font = font;
+            style.alignment = cellAlign;
+            ws[cellRef].s = style;
+        }
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, '校验报告');
+
+    // Stats sheet
+    const descriptions = {
+        '忽略': '总碳值<1且>=基准下限10%，无需关注',
+        '正常': '碳值在基准范围内',
+        '偏低': '低于基准下限10%（含<1的），请确认',
+        '超基准': '超出基准上限，电能损耗<=1',
+        '需复核': '超出基准上限，电能损耗>1',
+        '高值': '总碳值>100',
+        '无法匹配': '品类无法识别',
+    };
+    const orderedKeys = ['忽略', '正常', '偏低', '超基准', '需复核', '高值', '无法匹配'];
+    const statData = [['标记', '数量', '说明']];
+    for (const key of orderedKeys) {
+        statData.push([key, stats[key] || 0, descriptions[key]]);
+    }
+    statData.push(['合计', stats['总计'] || 0, '']);
+
+    const wsStat = XLSX.utils.aoa_to_sheet(statData);
+    wsStat['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 40 }];
+
+    // Style stats header
+    for (let c = 0; c < 3; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c });
+        if (!wsStat[cellRef]) wsStat[cellRef] = { t: 's', v: statData[0][c] };
+        wsStat[cellRef].s = { fill: headerFill, font: headerFont, alignment: { horizontal: 'center' } };
+    }
+
+    // Style stats rows
+    for (let r = 1; r <= orderedKeys.length; r++) {
+        const key = orderedKeys[r - 1];
+        const fill = fills[key];
+        for (let c = 0; c < 3; c++) {
+            const cellRef = XLSX.utils.encode_cell({ r, c });
+            if (!wsStat[cellRef]) continue;
+            const style = {};
+            if (fill) style.fill = fill;
+            if (key === '高值') style.font = { color: { rgb: 'FFFFFF' }, bold: true };
+            style.alignment = { horizontal: c === 1 ? 'center' : 'left', vertical: 'center' };
+            wsStat[cellRef].s = style;
+        }
+    }
+
+    // Total row style
+    const totalR = orderedKeys.length + 1;
+    for (let c = 0; c < 2; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r: totalR, c });
+        if (wsStat[cellRef]) wsStat[cellRef].s = { font: { bold: true } };
+    }
+
+    XLSX.utils.book_append_sheet(wb, wsStat, '统计汇总');
+
+    // Download
+    XLSX.writeFile(wb, 'carbon_validation_report.xlsx');
+}
+
+
+// ============================================================
+// UI 交互逻辑
+// ============================================================
+
+let dataFileObj = null;
+let refFileObj = null;
+let dataWorkbook = null;
+let refWorkbook = null;
+let allResults = [];
+let filteredResults = [];
+let activeFilter = 'all';
+let lastValidationOutput = null; // Store { results, stats }
+
+const TAG_MAP = {
+    '忽略': 'ignore', '正常': 'normal', '偏低': 'low',
+    '超基准': 'over', '需复核': 'review', '高值': 'high', '无法匹配': 'nomatch'
+};
+const TAG_CLASS = {
+    '忽略': 'badge-ignore', '正常': 'badge-normal', '偏低': 'badge-low',
+    '超基准': 'badge-over', '需复核': 'badge-review', '高值': 'badge-high', '无法匹配': 'badge-nomatch'
+};
+
+/**
+ * 读取Excel文件为workbook对象（使用SheetJS）
+ */
+async function readExcelFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                resolve(wb);
+            } catch(err) {
+                reject(err);
+            }
+        };
+        reader.onerror = () => reject(new Error('文件读取失败'));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function handleFileSelect(input, type) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (type === 'data') {
+        dataFileObj = file;
+        document.getElementById('dataFileName').textContent = '\u2705 ' + file.name;
+        document.getElementById('dataZone').classList.add('has-file');
+
+        // Pre-read the file
+        readExcelFile(file).then(wb => {
+            dataWorkbook = wb;
+            checkReady();
+        }).catch(err => {
+            showToast('读取文件失败: ' + err.message, false);
+        });
+    } else {
+        refFileObj = file;
+        document.getElementById('refFileName').textContent = '\u2705 ' + file.name;
+        document.getElementById('refZone').classList.add('has-file');
+
+        // Read and populate sheets
+        readExcelFile(file).then(wb => {
+            refWorkbook = wb;
+            const sheets = wb.SheetNames;
+            if (sheets && sheets.length > 1) {
+                const sel = document.getElementById('sheetSelect');
+                sel.innerHTML = sheets.map(s =>
+                    `<option value="${s}" ${(s.indexOf('\u66F4\u65B0') >= 0 || s.indexOf('\u8303\u56F4') >= 0) ? 'selected' : ''}>${s}</option>`
+                ).join('');
+                document.getElementById('sheetWrapper').classList.add('visible');
+            } else {
+                document.getElementById('sheetWrapper').classList.remove('visible');
+            }
+            checkReady();
+        }).catch(err => {
+            showToast('读取基准表失败: ' + err.message, false);
+        });
+    }
+}
+
+function checkReady() {
+    document.getElementById('runBtn').disabled = !(dataFileObj && refFileObj);
+}
+
+// Drag & drop
+['dataZone', 'refZone'].forEach(function(id) {
+    const el = document.getElementById(id);
+    el.addEventListener('dragover', function(e) { e.preventDefault(); el.classList.add('dragover'); });
+    el.addEventListener('dragleave', function() { el.classList.remove('dragover'); });
+    el.addEventListener('drop', function(e) {
+        e.preventDefault(); el.classList.remove('dragover');
+        const input = el.querySelector('input[type="file"]');
+        // Modern browsers don't support setting files directly on input
+        // Use DataTransfer instead
+        const dt = new DataTransfer();
+        dt.items.add(e.dataTransfer.files[0]);
+        input.files = dt.files;
+        const type = id === 'dataZone' ? 'data' : 'ref';
+        handleFileSelect(input, type);
+    });
+});
+
+async function runValidation() {
+    if (!dataFileObj || !refFileObj) return;
+
+    // Show loading with progress
+    const loadingEl = document.getElementById('loading');
+    const loadingTextEl = document.getElementById('loadingText');
+    loadingEl.classList.add('show');
+    loadingTextEl.textContent = '正在读取文件...';
+    document.getElementById('runBtn').disabled = true;
+
+    try {
+        // Step 1: Read files if not already cached
+        if (!dataWorkbook) {
+            loadingTextEl.textContent = '正在读取产品数据...';
+            dataWorkbook = await readExcelFile(dataFileObj);
+        }
+        if (!refWorkbook) {
+            loadingTextEl.textContent = '正在读取基准表...';
+            refWorkbook = await readExcelFile(refFileObj);
+        }
+
+        // Step 2: Get selected sheet for reference
+        const sheetVal = document.getElementById('sheetSelect').value;
+
+        // Step 3: Extract rows
+        loadingTextEl.textContent = '正在解析数据...';
+        const dataSheetName = dataWorkbook.SheetNames[0];
+        const dataWs = dataWorkbook.Sheets[dataSheetName];
+        const dataJson = XLSX.utils.sheet_to_json(dataWs, { header: 1, defval: '' });
+        const dataCols = dataJson.shift(); // First row = headers
+        const dataRows = dataJson; // Remaining = data
+
+        const refSheetName = sheetVal || refWorkbook.SheetNames[0];
+        const refWs = refWorkbook.Sheets[refSheetName];
+        const refJson = XLSX.utils.sheet_to_json(refWs, { header: 1, defval: '' });
+        // Keep headers in ref (needed by buildRefDict)
+
+        // Step 4: Run validation engine
+        loadingTextEl.textContent = `正在校验 ${dataRows.toLocaleString()} 条记录...`;
+        // Allow UI update
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const output = runValidationEngine(dataRows, dataCols, refJson);
+        lastValidationOutput = output;
+
+        // Limit preview to 200 rows for table rendering performance
+        const previewLimit = 200;
+        allResults = output.results.slice(0, previewLimit);
+        filteredResults = [...allResults];
+
+        renderStats(output.stats);
+        renderTable(output.columns);
+        renderFilters();
+
+        document.getElementById('result-section').classList.add('show');
+        document.getElementById('totalCountTop').textContent = output.stats['总计'].toLocaleString();
+        showToast('\u2705 \u6821\u9A8C\u5B8C\u6210\uFF01\u5171 ' + output.stats['总计'].toLocaleString() + ' \u6761\u6570\u636E', true);
+
+        // Hide upload area and rules
+        document.getElementById('uploadCard').style.display = 'none';
+        document.getElementById('rulesCardInline').style.display = 'none';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    } catch (err) {
+        console.error(err);
+        showToast('\u5904\u7406\u51FA\u9519: ' + err.message, false);
+    } finally {
+        loadingEl.classList.remove('show');
+        document.getElementById('runBtn').disabled = false;
+    }
+}
+
+function renderStats(stats) {
+    const items = [
+        { key: 'ignore', label: '\u5FFD\u7565', desc: '<1\u4E14\u8FBE\u6807', cls: 'stat-ignore' },
+        { key: 'normal', label: '\u6B63\u5E38', desc: '\u8303\u56F4\u5185', cls: 'stat-normal' },
+        { key: 'low', label: '\u504F\u4F4E', desc: '<\u4E0B\u965090%', cls: 'stat-low' },
+        { key: 'over', label: '\u8D85\u57FA\u51C6', desc: '>\u4E0A\u9650 \u7535\u80FD\u22641', cls: 'stat-over' },
+        { key: 'review', label: '\u9700\u590D\u6838', desc: '>\u4E0A\u9650 \u7535\u80FD>1', cls: 'stat-review' },
+        { key: 'high', label: '\u9AD8\u503C', desc: '>100', cls: 'stat-high' },
+        { key: 'nomatch', label: '\u65E0\u6CD5\u5339\u914D', desc: '\u54C1\u7C7B\u672A\u8BC6\u522B', cls: 'stat-nomatch' },
+    ];
+
+    const html = items.map(function(item) {
+        const count = stats[item.label] || 0;
+        return `
+      <div class="stat-card ${item.cls}">
+        <div class="number">${count.toLocaleString()}</div>
+        <div class="label">${item.label}</div>
+        <div class="desc">${item.desc}</div>
+      </div>`;
+    }).join('') + `
+    <div class="stat-card" style="border-color:var(--primary)">
+      <div class="number">${(stats['\u603B\u8BA1']||0).toLocaleString()}</div>
+      <div class="label">\u5408\u8BA1</div>
+      <div class="desc">\u5168\u90E8\u4EA7\u54C1</div>
+    </div>`;
+
+    document.getElementById('statsGrid').innerHTML = html;
+}
+
+function renderTable(columns) {
+    const thead = document.querySelector('#resultTable thead tr');
+    thead.innerHTML = columns.map(function(c) {
+        return `<th>${c.replace(/\n/g, '<br>')}</th>`;
+    }).join('');
+
+    renderRows();
+}
+
+function renderRows() {
+    const tbody = document.querySelector('#resultTable tbody');
+
+    // Find marker column index
+    let markIdx = -1;
+    if (filteredResults.length > 0) {
+        const keys = Object.keys(filteredResults[0]);
+        markIdx = keys.indexOf('\u6807\u8BB0');
+    }
+
+    tbody.innerHTML = filteredResults.map(function(row, i) {
+        const tag = row['\u6807\u8BB0'] || '';
+        const badgeCls = TAG_CLASS[tag] || '';
+        const cells = Object.values(row).map(function(val, ci) {
+            if (ci === markIdx) {
+                return `<td><span class="badge ${badgeCls}">${val}</span></td>`;
+            }
+            const displayVal = (val !== null && val !== undefined && val !== '') ? val : '-';
+            return `<td>${displayVal}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+    }).join('');
+
+    document.getElementById('tableInfo').textContent =
+        '\u663E\u793A ' + filteredResults.length + ' / ' + lastValidationOutput.results.length + ' \u6761';
+}
+
+function renderFilters() {
+    const tags = ['all', '\u5FFD\u7565', '\u6B63\u5E38', '\u504F\u4F4E', '\u8D85\u57FA\u51C6', '\u9700\u590D\u6838', '\u9AD8\u503C', '\u65E0\u6CD5\u5339\u914D'];
+    document.getElementById('filterBar').innerHTML = tags.map(function(t) {
+        return `<button class="filter-btn ${t==='all'?'active':''}" onclick="setFilter('${t}')">${t}</button>`;
+    }).join('');
+}
+
+function setFilter(tag) {
+    activeFilter = tag;
+    document.querySelectorAll('.filter-btn').forEach(function(b) {
+        b.classList.toggle('active', b.textContent.trim() === tag);
+    });
+
+    if (!lastValidationOutput) return;
+
+    const fullResults = lastValidationOutput.results;
+    if (tag === 'all') {
+        filteredResults = fullResults.slice(0, 200); // Preview limit
+    } else {
+        filteredResults = fullResults.filter(function(r) { return r['\u6807\u8BB0'] === tag; });
+    }
+    renderRows();
+}
+
+function downloadReport() {
+    if (!lastValidationOutput) {
+        showToast('\u6682\u65E0\u53EF\u4E0B\u8F7D\u7684\u62A5\u544A', false);
+        return;
+    }
+
+    try {
+        generateAndDownloadExcel(lastValidationOutput.results, lastValidationOutput.stats);
+        showToast('\u2705 Excel\u62A5\u544A\u5DF2\u5F00\u59CB\u4E0B\u8F7D', true);
+    } catch(err) {
+        console.error(err);
+        showToast('\u4E0B\u8F7D\u5931\u8D25: ' + err.message, false);
+    }
+}
+
+function resetAll() {
+    dataFileObj = null; refFileObj = null;
+    dataWorkbook = null; refWorkbook = null;
+    allResults = []; filteredResults = [];
+    lastValidationOutput = null;
+    activeFilter = 'all';
+    document.getElementById('dataInput').value = '';
+    document.getElementById('refInput').value = '';
+    document.getElementById('dataFileName').textContent = '';
+    document.getElementById('refFileName').textContent = '';
+    document.getElementById('dataZone').classList.remove('has-file');
+    document.getElementById('refZone').classList.remove('has-file');
+    document.getElementById('sheetWrapper').classList.remove('visible');
+    document.getElementById('result-section').classList.remove('show');
+    document.getElementById('runBtn').disabled = true;
+    document.getElementById('uploadCard').style.display = '';
+    document.getElementById('rulesCardInline').style.display = '';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showToast(msg, success) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (success ? 'success' : '');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function() { t.classList.remove('show'); }, 3500);
+}
+</script>
+</body>
+</html>
